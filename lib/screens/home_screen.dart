@@ -8,6 +8,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bootstrap/flutter_bootstrap.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/caption_service.dart';
 import '../models/caption_entry.dart';
 import '../shared/widgets/profile_menu.dart';
@@ -32,6 +33,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isProfileMenuOpen = false;
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
+  
+  double _ttsVolume = 0.5; // Default Volume
+  static const String _volumePrefKey = 'tts_volume';
 
   @override
   void initState() {
@@ -136,7 +140,27 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _speakCaption(String caption) async {
-    await _flutterTts.speak(caption);
+    await _flutterTts.stop();
+    await _flutterTts.setVolume(_ttsVolume);
+	await _flutterTts.speak(caption);
+  }
+  
+  Future<void> _loadVolumePreference() async {
+	final prefs = await SharedPreferences.getInstance();
+	setState(() {
+	  _ttsVolume = prefs.getDouble(_volumePrefKey) ?? 0.5;
+	});
+  }
+
+  Future<void> _saveVolumePreference(double value) async {
+	final prefs = await SharedPreferences.getInstance();
+	await prefs.setDouble(_volumePrefKey, value);
+  }
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadVolumePreference();
   }
 
   void _toggleHistoryItem(int index) {
@@ -264,6 +288,50 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
+	  bottomNavigationBar: SafeArea(
+	    child: Container(
+		  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+		  decoration: BoxDecoration(
+		    color: Colors.white,
+		    boxShadow: [
+			  BoxShadow(
+			    color: Colors.black.withOpacity(0.05),
+			    blurRadius: 6,
+			    offset: const Offset(0, -2),
+			  ),
+		    ],
+		  ),
+		  child: Column(
+		    mainAxisSize: MainAxisSize.min,
+		    crossAxisAlignment: CrossAxisAlignment.start,
+		    children: [
+			  Text(
+			    'TTS Volume',
+			    style: GoogleFonts.poppins(
+				  fontSize: 14,
+				  fontWeight: FontWeight.w500,
+				  color: AppTheme.textPrimaryColor,
+			    ),
+		      ),
+			  Slider(
+			    value: _ttsVolume,
+			    min: 0.0,
+			    max: 1.0,
+			    divisions: 10,
+			    label: '${(_ttsVolume * 100).round()}%',
+			    onChanged: (value) {
+				  setState(() {
+				    _ttsVolume = value;
+				  });
+			    _saveVolumePreference(value);
+			    },
+			    activeColor: AppTheme.primaryColor,
+			    inactiveColor: AppTheme.primaryColor.withOpacity(0.3),
+			  ),
+		    ],
+		  ),
+	    ),
+	  ),
     );
   }
 
