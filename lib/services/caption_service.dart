@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:path/path.dart';
 import '../models/caption_entry.dart';
 
 class CaptionService extends ChangeNotifier {
@@ -43,9 +44,11 @@ class CaptionService extends ChangeNotifier {
           imageFile.path,
         ),
       );
+      print("Request caption for image: ${basename(imageFile.path)}");
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
+      print('Response status: ${response.statusCode}'); 
 
       if (response.statusCode == 200) {
         _caption = _parseCaption(responseBody);

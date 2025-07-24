@@ -12,6 +12,7 @@ import '../services/caption_service.dart';
 import '../models/caption_entry.dart';
 import '../shared/widgets/profile_menu.dart';
 import '../styles/app_theme.dart';
+import 'camera_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -86,22 +87,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(source: source);
-      if (pickedFile != null) {
-        final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          _imageBytes = bytes;
-        });
+      if (source == ImageSource.camera && !kIsWeb) {
+        // Use custom camera screen for mobile
+        final result = await Navigator.push<Uint8List>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CameraScreen(
+              onImageCaptured: (imageBytes) {
+                setState(() {
+                  _imageBytes = imageBytes;
+                });
+                // Generate caption from the captured photo
+                context.read<CaptionService>().generateCaptionWeb(imageBytes);
+              },
+            ),
+          ),
+        );
         
-        if (kIsWeb) {
-          await context.read<CaptionService>().generateCaptionWeb(bytes);
-        } else {
-          await context.read<CaptionService>().generateCaption(File(pickedFile.path));
+        if (result != null) {
+          setState(() {
+            _imageBytes = result;
+          });
+          // Generate caption from the captured photo
+          await context.read<CaptionService>().generateCaptionWeb(result);
+        }
+      } else {
+        // Use image picker for gallery or web
+        final XFile? pickedFile = await _picker.pickImage(source: source);
+        if (pickedFile != null) {
+          final bytes = await pickedFile.readAsBytes();
+          setState(() {
+            _imageBytes = bytes;
+          });
+          
+          if (kIsWeb) {
+            await context.read<CaptionService>().generateCaptionWeb(bytes);
+          } else {
+            await context.read<CaptionService>().generateCaption(File(pickedFile.path));
+          }
         }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -203,17 +234,35 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-                        ElevatedButton.icon(
-                          onPressed: () => _pickImage(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library, size: 24),
-                          label: Text('Upload from Gallery', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                            backgroundColor: AppTheme.primaryColor,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
-                            elevation: 4,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () => _pickImage(ImageSource.camera),
+                              icon: const Icon(Icons.camera_alt, size: 24),
+                              label: Text('Take Photo', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                backgroundColor: AppTheme.primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
+                                elevation: 4,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            ElevatedButton.icon(
+                              onPressed: () => _pickImage(ImageSource.gallery),
+                              icon: const Icon(Icons.photo_library, size: 24),
+                              label: Text('Gallery', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                backgroundColor: AppTheme.secondaryColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
+                                elevation: 4,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -241,15 +290,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 24),
                   Center(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _pickImage(ImageSource.gallery),
-                      icon: const Icon(Icons.add_photo_alternate),
-                      label: Text('Add Another Image', style: GoogleFonts.poppins()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.secondaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _pickImage(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt),
+                          label: Text('Take Photo', style: GoogleFonts.poppins()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => _pickImage(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library),
+                          label: Text('Gallery', style: GoogleFonts.poppins()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.secondaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 32),
