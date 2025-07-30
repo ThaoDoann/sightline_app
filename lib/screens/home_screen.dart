@@ -8,10 +8,15 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bootstrap/flutter_bootstrap.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/caption_service.dart';
 import '../models/caption_entry.dart';
 import '../shared/widgets/profile_menu.dart';
 import '../styles/app_theme.dart';
+import 'dart:convert';
+import '../styles/app_theme.dart';
+import 'login_screen.dart';
+import '../services/auth_services.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +33,25 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isProfileMenuOpen = false;
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
+  
+  double _ttsVolume = 0.5; // Default Volume
+  static const String _volumePrefKey = 'tts_volume';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final auth = context.read<AuthService>();
+      if (auth.token == null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+      await context.read<CaptionService>().fetchHistoryFromBackend();
+    });
+  }
 
   @override
   void dispose() {
@@ -56,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   OverlayEntry _createOverlayEntry() {
+    final user = context.read<AuthService>();
     return OverlayEntry(
       builder: (context) => Positioned(
         width: 250,
@@ -67,15 +92,19 @@ class _HomeScreenState extends State<HomeScreen> {
             elevation: 8.0,
             borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
             child: ProfileMenu(
-              userName: 'UserName',
-              userEmail: 'user@example.com',
+              userName: user?.username ?? 'User',
+              userEmail: user?.email ?? 'email@example.com',
               onSettingsTap: () {
                 _removeOverlay();
-                // TODO: Navigate to settings
               },
-              onLogoutTap: () {
+              onLogoutTap: () async {
                 _removeOverlay();
-                // TODO: Implement logout
+                await context.read<AuthService>().logout();
+                if (!mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
               },
             ),
           ),
@@ -92,22 +121,46 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _imageBytes = bytes;
         });
-        
+
         if (kIsWeb) {
           await context.read<CaptionService>().generateCaptionWeb(bytes);
         } else {
-          await context.read<CaptionService>().generateCaption(File(pickedFile.path));
+          await context.read<CaptionService>().generateCaption(
+            File(pickedFile.path),
+          );
         }
       }
+      await context.read<CaptionService>().fetchHistoryFromBackend();
+      setState(() {}); // refresh UI
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
     }
   }
 
   Future<void> _speakCaption(String caption) async {
-    await _flutterTts.speak(caption);
+    await _flutterTts.stop();
+    await _flutterTts.setVolume(_ttsVolume);
+	await _flutterTts.speak(caption);
+  }
+  
+  Future<void> _loadVolumePreference() async {
+	final prefs = await SharedPreferences.getInstance();
+	setState(() {
+	  _ttsVolume = prefs.getDouble(_volumePrefKey) ?? 0.5;
+	});
+  }
+
+  Future<void> _saveVolumePreference(double value) async {
+	final prefs = await SharedPreferences.getInstance();
+	await prefs.setDouble(_volumePrefKey, value);
+  }
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadVolumePreference();
   }
 
   void _toggleHistoryItem(int index) {
@@ -118,9 +171,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.read<AuthService>();
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Sightline', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Sightline',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.1),
@@ -146,11 +204,19 @@ class _HomeScreenState extends State<HomeScreen> {
             link: _layerLink,
             child: Row(
               children: [
-                Text('UserName', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
+                Text(
+                  user.username ?? 'username',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: CircleAvatar(
-                    backgroundColor: _isProfileMenuOpen ? AppTheme.primaryColor : Colors.blue,
+                    backgroundColor: _isProfileMenuOpen
+                        ? AppTheme.primaryColor
+                        : Colors.blue,
                     child: const Icon(Icons.person, color: Colors.white),
                   ),
                   onPressed: _showProfileMenu,
@@ -166,218 +232,112 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, captionService, child) {
           return SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_imageBytes == null && captionService.history.isEmpty) ...[
-                  const SizedBox(height: 40),
-                  Center(
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(AppTheme.borderRadiusXL),
-                          ),
-                          child: Icon(
-                            Icons.photo_library,
-                            size: 80,
-                            color: AppTheme.primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'Start by uploading an image',
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Get AI-powered descriptions of your images',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            color: AppTheme.textSecondaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton.icon(
-                          onPressed: () => _pickImage(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library, size: 24),
-                          label: Text('Upload from Gallery', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                            backgroundColor: AppTheme.primaryColor,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
-                            elevation: 4,
-                          ),
-                        ),
-                      ],
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () => _pickImage(ImageSource.gallery),
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text("Upload Image"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
                     ),
                   ),
-                  const SizedBox(height: 40),
-                ],
+                ),
+                const SizedBox(height: 20),
                 if (_imageBytes != null) ...[
-                  const SizedBox(height: 20),
-                  Container(
-                    height: MediaQuery.of(context).size.height * 0.4,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppTheme.borderRadiusL),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.borderRadiusL),
-                      child: Image.memory(_imageBytes!, fit: BoxFit.contain),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Center(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _pickImage(ImageSource.gallery),
-                      icon: const Icon(Icons.add_photo_alternate),
-                      label: Text('Add Another Image', style: GoogleFonts.poppins()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.secondaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                ],
-                if (captionService.isLoading) ...[
-                  const SizedBox(height: 20),
-                  const Center(child: CircularProgressIndicator()),
-                  const SizedBox(height: 20),
-                ] else if (captionService.error != null) ...[
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.errorColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
-                      border: Border.all(color: AppTheme.errorColor.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: AppTheme.errorColor),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            captionService.error!,
-                            style: GoogleFonts.poppins(color: AppTheme.errorColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ] else if (captionService.caption != null) ...[
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(AppTheme.borderRadiusL),
-                      border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.description,
-                          color: AppTheme.primaryColor,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            captionService.caption!,
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              color: AppTheme.textPrimaryColor,
-                              height: 1.5,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.volume_up, color: AppTheme.primaryColor),
-                          onPressed: () => _speakCaption(captionService.caption!),
-                          tooltip: 'Speak Caption',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                ],
-                if (captionService.history.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
+                  Image.memory(_imageBytes!, height: 200, fit: BoxFit.cover),
+                  if (captionService.caption != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
                         children: [
-                          Icon(Icons.history, color: AppTheme.primaryColor, size: 24),
-                          const SizedBox(width: 8),
+                          const SizedBox(height: 10),
                           Text(
-                            'History',
-                            style: GoogleFonts.poppins(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryColor,
+                            captionService.caption!,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
                             ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.volume_up),
+                            onPressed: () =>
+                                _speakCaption(captionService.caption!),
+                            tooltip: 'Speak Caption',
                           ),
                         ],
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          context.read<CaptionService>().clearHistory();
-                          setState(() {
-                            _expandedItems.clear();
-                          });
-                        },
-                        icon: const Icon(Icons.delete_outline, color: Colors.white),
-                        label: Text('Clear History', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w500)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.errorColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadiusM)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: captionService.history.length,
-                    itemBuilder: (context, index) {
-                      final entry = captionService.history[index];
-                      return _buildHistoryItem(entry, index);
-                    },
-                  ),
-                  const SizedBox(height: 20),
+                    ),
                 ],
+
+                const SizedBox(height: 20),
+                Text(
+                  'Caption History',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                if (captionService.history.isNotEmpty)
+                  ...captionService.history.asMap().entries.map(
+                    (entry) => _buildHistoryItem(entry.value, entry.key),
+                  ),
               ],
             ),
           );
         },
       ),
+	  bottomNavigationBar: SafeArea(
+	    child: Container(
+		  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+		  decoration: BoxDecoration(
+		    color: Colors.white,
+		    boxShadow: [
+			  BoxShadow(
+			    color: Colors.black.withOpacity(0.05),
+			    blurRadius: 6,
+			    offset: const Offset(0, -2),
+			  ),
+		    ],
+		  ),
+		  child: Column(
+		    mainAxisSize: MainAxisSize.min,
+		    crossAxisAlignment: CrossAxisAlignment.start,
+		    children: [
+			  Text(
+			    'TTS Volume',
+			    style: GoogleFonts.poppins(
+				  fontSize: 14,
+				  fontWeight: FontWeight.w500,
+				  color: AppTheme.textPrimaryColor,
+			    ),
+		      ),
+			  Slider(
+			    value: _ttsVolume,
+			    min: 0.0,
+			    max: 1.0,
+			    divisions: 10,
+			    label: '${(_ttsVolume * 100).round()}%',
+			    onChanged: (value) {
+				  setState(() {
+				    _ttsVolume = value;
+				  });
+			    _saveVolumePreference(value);
+			    },
+			    activeColor: AppTheme.primaryColor,
+			    inactiveColor: AppTheme.primaryColor.withOpacity(0.3),
+			  ),
+		    ],
+		  ),
+	    ),
+	  ),
     );
   }
 
   Widget _buildHistoryItem(CaptionEntry entry, int index) {
     final isExpanded = _expandedItems[index] ?? false;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
@@ -412,12 +372,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
-                  child: Image.memory(
-                    entry.imageBytes,
-                    width: isExpanded ? 200 : 80,
-                    height: isExpanded ? 200 : 80,
-                    fit: BoxFit.cover,
-                  ),
+                  child: entry.imageBytes != null
+                      ? Image.memory(
+                          entry.imageBytes!,
+                          width: isExpanded ? 200 : 80,
+                          height: isExpanded ? 200 : 80,
+                          fit: BoxFit.cover,
+                        )
+                      : const Icon(Icons.image_not_supported),
                 ),
               ),
               const SizedBox(width: 16.0),
@@ -429,13 +391,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppTheme.primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(AppTheme.borderRadiusS),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.borderRadiusS,
+                            ),
                           ),
                           child: Text(
-                            DateFormat('MMM d, y • h:mm a').format(entry.timestamp),
+                            DateFormat(
+                              'MMM d, y • h:mm a',
+                            ).format(entry.timestamp),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: AppTheme.primaryColor,
@@ -446,7 +415,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         Row(
                           children: [
                             IconButton(
-                              icon: Icon(Icons.volume_up, color: AppTheme.primaryColor, size: 20),
+                              icon: Icon(
+                                Icons.volume_up,
+                                color: AppTheme.primaryColor,
+                                size: 20,
+                              ),
                               onPressed: () => _speakCaption(entry.caption),
                               tooltip: 'Speak Caption',
                               padding: EdgeInsets.zero,
@@ -454,7 +427,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(width: 8),
                             Icon(
-                              isExpanded ? Icons.expand_less : Icons.expand_more,
+                              isExpanded
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
                               color: AppTheme.textSecondaryColor,
                               size: 20,
                             ),
@@ -467,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       entry.caption,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: AppTheme.textPrimaryColor,
+                        color: const Color.fromARGB(255, 17, 17, 17),
                         height: 1.4,
                       ),
                       maxLines: isExpanded ? null : 2,
@@ -482,4 +457,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-} 
+}

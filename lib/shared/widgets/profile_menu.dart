@@ -57,11 +57,14 @@ class ProfileMenu extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.logout, color: AppTheme.errorColor),
-            title: Text('Logout', style: AppTheme.bodyMedium.copyWith(color: AppTheme.errorColor)),
+            title: Text(
+              'Logout',
+              style: AppTheme.bodyMedium.copyWith(color: AppTheme.errorColor),
+            ),
             onTap: onLogoutTap,
           ),
         ],
       ),
     );
   }
-} 
+}
