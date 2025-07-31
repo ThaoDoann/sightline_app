@@ -17,6 +17,7 @@ import 'dart:convert';
 import '../styles/app_theme.dart';
 import 'login_screen.dart';
 import '../services/auth_services.dart';
+import '../main.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _loadVolumePreference();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = context.read<AuthService>();
       if (auth.token == null) {
@@ -157,11 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
 	await prefs.setDouble(_volumePrefKey, value);
   }
   
-  @override
-  void initState() {
-    super.initState();
-    _loadVolumePreference();
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _loadVolumePreference();
+  // }
 
   void _toggleHistoryItem(int index) {
     setState(() {
@@ -179,7 +181,8 @@ class _HomeScreenState extends State<HomeScreen> {
           'Sightline',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.white,
+        // backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.1),
         bottom: PreferredSize(
@@ -200,6 +203,23 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
+          Row(
+            children: [
+                Icon(Icons.light_mode),
+                Switch(
+                  value: MyApp.themeNotifier.value == ThemeMode.dark,
+                  onChanged: (value) {
+                    setState(() {
+                      MyApp.themeNotifier.value =
+                          value ? ThemeMode.dark : ThemeMode.light;
+                    });
+                  },
+                ),
+                Icon(Icons.dark_mode),
+                SizedBox(width: 16),
+              ],
+          ),
+
           CompositedTransformTarget(
             link: _layerLink,
             child: Row(
@@ -328,8 +348,23 @@ class _HomeScreenState extends State<HomeScreen> {
 			    activeColor: AppTheme.primaryColor,
 			    inactiveColor: AppTheme.primaryColor.withOpacity(0.3),
 			  ),
+        const SizedBox(height: 8),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              '© 2025 Sightline • Powered by Flutter Develop By Thao, Matthew, Navin & CHI',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.black.withOpacity(0.6),
+              ),
+            ),
+            ),
+        ),
 		    ],
 		  ),
+      
 	    ),
 	  ),
     );
