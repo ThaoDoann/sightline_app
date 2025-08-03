@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/caption_service.dart';
 import '../models/caption_entry.dart';
 import '../shared/widgets/profile_menu.dart';
+import '../shared/widgets/main_layout.dart';
 import '../styles/app_theme.dart';
 import 'dart:convert';
 import '../styles/app_theme.dart';
@@ -31,17 +32,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   final ImagePicker _picker = ImagePicker();
   final Map<int, bool> _expandedItems = {};
-  bool _isProfileMenuOpen = false;
-  final LayerLink _layerLink = LayerLink();
-  OverlayEntry? _overlayEntry;
   
-  double _ttsVolume = 0.5; // Default Volume
-  static const String _volumePrefKey = 'tts_volume';
+
 
   @override
   void initState() {
     super.initState();
-    _loadVolumePreference();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = context.read<AuthService>();
       if (auth.token == null) {
@@ -53,68 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       await context.read<CaptionService>().fetchHistoryFromBackend();
     });
-  }
-
-  @override
-  void dispose() {
-    _removeOverlay();
-    super.dispose();
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-    setState(() {
-      _isProfileMenuOpen = false;
-    });
-  }
-
-  void _showProfileMenu() {
-    if (_isProfileMenuOpen) {
-      _removeOverlay();
-    } else {
-      _overlayEntry = _createOverlayEntry();
-      Overlay.of(context).insert(_overlayEntry!);
-      setState(() {
-        _isProfileMenuOpen = true;
-      });
-    }
-  }
-
-  OverlayEntry _createOverlayEntry() {
-    final user = context.read<AuthService>();
-    return OverlayEntry(
-      builder: (context) => Positioned(
-        width: 250,
-        child: CompositedTransformFollower(
-          link: _layerLink,
-          showWhenUnlinked: false,
-          offset: const Offset(-50, 60),
-          child: Material(
-            elevation: 8.0,
-            borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
-            child: ProfileMenu(
-              userName: user?.username ?? 'User',
-              userEmail: user?.email ?? 'email@example.com',
-              onSettingsTap: () {
-                _removeOverlay();
-              },
-              onLogoutTap: () async {
-                _removeOverlay();
-                // Clear caption data before logout
-                context.read<CaptionService>().clearAllData();
-                await context.read<AuthService>().logout();
-                if (!mounted) return;
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
     Future<void> _pickImage(ImageSource source) async {
@@ -145,27 +79,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _speakCaption(String caption) async {
     await _flutterTts.stop();
-    await _flutterTts.setVolume(_ttsVolume);
-	await _flutterTts.speak(caption);
+    // Get volume from shared preferences directly
+    final prefs = await SharedPreferences.getInstance();
+    final volume = prefs.getDouble('tts_volume') ?? 0.5;
+    await _flutterTts.setVolume(volume);
+    await _flutterTts.speak(caption);
   }
-  
-  Future<void> _loadVolumePreference() async {
-	final prefs = await SharedPreferences.getInstance();
-	setState(() {
-	  _ttsVolume = prefs.getDouble(_volumePrefKey) ?? 0.5;
-	});
-  }
-
-  Future<void> _saveVolumePreference(double value) async {
-	final prefs = await SharedPreferences.getInstance();
-	await prefs.setDouble(_volumePrefKey, value);
-  }
-  
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _loadVolumePreference();
-  // }
 
   void _toggleHistoryItem(int index) {
     setState(() {
@@ -175,82 +94,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthService>();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Sightline',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        // backgroundColor: Colors.white,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.1),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.primaryColor.withOpacity(0.3),
-                  AppTheme.primaryColor,
-                  AppTheme.primaryColor.withOpacity(0.3),
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-            ),
-          ),
-        ),
-        actions: [
-          Row(
-            children: [
-                Icon(Icons.light_mode),
-                Switch(
-                  value: MyApp.themeNotifier.value == ThemeMode.dark,
-                  onChanged: (value) {
-                    setState(() {
-                      MyApp.themeNotifier.value =
-                          value ? ThemeMode.dark : ThemeMode.light;
-                    });
-                  },
-                ),
-                Icon(Icons.dark_mode),
-                SizedBox(width: 16),
-              ],
-          ),
-
-          CompositedTransformTarget(
-            link: _layerLink,
-            child: Row(
-              children: [
-                Text(
-                  user.username ?? 'username',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: CircleAvatar(
-                    backgroundColor: _isProfileMenuOpen
-                        ? AppTheme.primaryColor
-                        : Colors.blue,
-                    child: const Icon(Icons.person, color: Colors.white),
-                  ),
-                  onPressed: _showProfileMenu,
-                  tooltip: 'User Profile',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-        ],
-      ),
-      body: Consumer<CaptionService>(
+    return MainLayout(
+      showUserProfile: true,
+      showTTSVolume: true,
+      child: Consumer<CaptionService>(
         builder: (context, captionService, child) {
           return SingleChildScrollView(
             child: Column(
@@ -367,65 +214,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-	  bottomNavigationBar: SafeArea(
-	    child: Container(
-		  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-		  decoration: BoxDecoration(
-		    color: Colors.white,
-		    boxShadow: [
-			  BoxShadow(
-			    color: Colors.black.withOpacity(0.05),
-			    blurRadius: 6,
-			    offset: const Offset(0, -2),
-			  ),
-		    ],
-		  ),
-		  child: Column(
-		    mainAxisSize: MainAxisSize.min,
-		    crossAxisAlignment: CrossAxisAlignment.start,
-		    children: [
-			  Text(
-			    'TTS Volume',
-			    style: GoogleFonts.poppins(
-				  fontSize: 14,
-				  fontWeight: FontWeight.w500,
-				  color: AppTheme.textPrimaryColor,
-			    ),
-		      ),
-			  Slider(
-			    value: _ttsVolume,
-			    min: 0.0,
-			    max: 1.0,
-			    divisions: 10,
-			    label: '${(_ttsVolume * 100).round()}%',
-			    onChanged: (value) {
-				  setState(() {
-				    _ttsVolume = value;
-				  });
-			    _saveVolumePreference(value);
-			    },
-			    activeColor: AppTheme.primaryColor,
-			    inactiveColor: AppTheme.primaryColor.withOpacity(0.3),
-			  ),
-        const SizedBox(height: 8),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(
-              '© 2025 Sightline • Powered by Flutter Develop By Thao, Matthew, Navin & CHI',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.black.withOpacity(0.6),
-              ),
-            ),
-            ),
-        ),
-		    ],
-		  ),
-      
-	    ),
-	  ),
     );
   }
 

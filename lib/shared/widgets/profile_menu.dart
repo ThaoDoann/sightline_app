@@ -52,7 +52,7 @@ class ProfileMenu extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.settings, color: AppTheme.primaryColor),
-            title: Text('Account Settings', style: AppTheme.bodyMedium),
+            title: Text('App Settings', style: AppTheme.bodyMedium),
             onTap: onSettingsTap,
           ),
           ListTile(
