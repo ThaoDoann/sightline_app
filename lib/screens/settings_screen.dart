@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:provider/provider.dart';
 import '../styles/app_theme.dart';
 import '../main.dart';
+import '../services/font_size_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,7 +19,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _ttsVolume = 0.5;
   double _fontSize = 16.0;
   bool _autoSave = true;
-  bool _highQualityImages = true;
   String _ttsLanguage = 'en-US';
   
   final FlutterTts _flutterTts = FlutterTts();
@@ -25,9 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   static const String _volumePrefKey = 'tts_volume';
   static const String _themePrefKey = 'theme_mode';
-  static const String _fontSizePrefKey = 'font_size';
   static const String _autoSavePrefKey = 'auto_save';
-  static const String _highQualityPrefKey = 'high_quality_images';
   static const String _ttsLanguagePrefKey = 'tts_language';
 
   @override
@@ -38,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final fontSizeService = context.read<FontSizeService>();
     
     setState(() {
       // Load theme preference
@@ -45,9 +45,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       
       // Load all preferences
       _ttsVolume = prefs.getDouble(_volumePrefKey) ?? 0.5;
-      _fontSize = prefs.getDouble(_fontSizePrefKey) ?? 16.0;
+      _fontSize = fontSizeService.fontSize; // Get from FontSizeService
       _autoSave = prefs.getBool(_autoSavePrefKey) ?? true;
-      _highQualityImages = prefs.getBool(_highQualityPrefKey) ?? true;
       _ttsLanguage = prefs.getString(_ttsLanguagePrefKey) ?? 'en-US';
     });
   }
@@ -65,19 +64,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setDouble(_volumePrefKey, value);
   }
 
-  Future<void> _saveFontSizePreference(double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_fontSizePrefKey, value);
-  }
-
   Future<void> _saveAutoSavePreference(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoSavePrefKey, value);
-  }
-
-  Future<void> _saveHighQualityPreference(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_highQualityPrefKey, value);
   }
 
   Future<void> _saveTtsLanguagePreference(String value) async {
@@ -116,6 +105,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isLargeScreen = screenSize.width > 768;
+    final isTablet = screenSize.width > 600 && screenSize.width <= 768;
+    final maxWidth = isLargeScreen ? 1200.0 : double.infinity;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -129,37 +123,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.1),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // Appearance Section
-          _buildSectionHeader('Appearance'),
-          _buildThemeSelector(),
-          const SizedBox(height: 24),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: ListView(
+            padding: EdgeInsets.all(isLargeScreen ? 32.0 : 16.0),
+            children: [
+              // Appearance Section
+              _buildSectionHeader('Appearance'),
+              _buildThemeSelector(),
+              const SizedBox(height: 24),
 
-          // Text & Display Section
-          _buildSectionHeader('Text & Display'),
-          _buildFontSizeControl(),
-          const SizedBox(height: 24),
+              // Text & Display Section
+              _buildSectionHeader('Text & Display'),
+              _buildFontSizeControl(),
+              const SizedBox(height: 24),
 
-          // Accessibility Section
-          _buildSectionHeader('Accessibility'),
-          _buildVolumeControl(),
-          const SizedBox(height: 12),
-          _buildLanguageSelector(),
-          const SizedBox(height: 24),
+              // Accessibility Section
+              _buildSectionHeader('Accessibility'),
+              _buildVolumeControl(),
+              const SizedBox(height: 12),
+              _buildLanguageSelector(),
+              const SizedBox(height: 24),
 
-          // Image & Storage Section
-          _buildSectionHeader('Image & Storage'),
-          _buildImageQualityToggle(),
-          const SizedBox(height: 12),
-          _buildAutoSaveToggle(),
-          const SizedBox(height: 24),
+              // Data & History Section
+              _buildSectionHeader('Data & History'),
+              _buildAutoSaveToggle(),
+              const SizedBox(height: 24),
 
-          // About Section
-          _buildSectionHeader('About'),
-          _buildAboutTile(),
-        ],
+              // About Section
+              _buildSectionHeader('About'),
+              _buildAboutTile(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -500,13 +497,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Slider(
                 value: _fontSize,
                 min: 12.0,
-                max: 24.0,
+                max: 40.0,
                 divisions: 6,
                 onChanged: (value) {
                   setState(() {
                     _fontSize = value;
                   });
-                  _saveFontSizePreference(value);
+                  context.read<FontSizeService>().setFontSize(value);
                 },
               ),
             ),
@@ -547,43 +544,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: Colors.grey.shade400,
         ),
         onTap: () => _showLanguageDialog(),
-      ),
-    );
-  }
-
-  Widget _buildImageQualityToggle() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
-      ),
-      child: SwitchListTile(
-        secondary: Icon(
-          Icons.high_quality,
-          color: AppTheme.primaryColor,
-        ),
-        title: Text(
-          'High Quality Images',
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        subtitle: Text(
-          'Use higher resolution for better AI analysis',
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
-        ),
-        value: _highQualityImages,
-        activeColor: AppTheme.primaryColor,
-        onChanged: (value) {
-          setState(() {
-            _highQualityImages = value;
-          });
-          _saveHighQualityPreference(value);
-        },
       ),
     );
   }

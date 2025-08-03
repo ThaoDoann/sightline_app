@@ -93,128 +93,180 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _clearHistory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Clear History',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Are you sure you want to clear all caption history? This action cannot be undone.',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey.shade600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(
+              'Clear',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await context.read<CaptionService>().clearCaptionHistory();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('History cleared successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _showImageUploadOptions() {
+    if (kIsWeb) {
+      // For web, directly pick image
+      _pickImage(ImageSource.gallery);
+    } else {
+      // For mobile, show options
+      showModalBottomSheet(
+        context: context,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select Image Source',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickImage(ImageSource.camera);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.camera_alt, size: 32, color: AppTheme.primaryColor),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Camera',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickImage(ImageSource.gallery);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.photo_library, size: 32, color: AppTheme.primaryColor),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Gallery',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isLargeScreen = screenSize.width > 768;
+    final isTablet = screenSize.width > 600 && screenSize.width <= 768;
+    final maxWidth = isLargeScreen ? 1200.0 : double.infinity;
+
     return MainLayout(
       showUserProfile: true,
-      showTTSVolume: false, // Volume control moved to settings
+      showTTSVolume: false,
       child: Consumer<CaptionService>(
         builder: (context, captionService, child) {
           return SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text("Upload Image"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                if (_imageBytes != null) ...[
-                  Image.memory(_imageBytes!, height: 200, fit: BoxFit.cover),
-                  const SizedBox(height: 20),
-                  
-                  // Loading indicator while generating caption
-                  if (captionService.isLoading)
-                    const Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Column(
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 10),
-                          Text(
-                            'Generating caption...',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  
-                  // Caption display when not loading and caption exists
-                  if (!captionService.isLoading && captionService.caption != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 10),
-                          Consumer<FontSizeService>(
-                            builder: (context, fontSizeService, child) {
-                              return Text(
-                                captionService.caption!,
-                                style: TextStyle(
-                                  fontSize: fontSizeService.fontSize,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.volume_up),
-                            onPressed: () =>
-                                _speakCaption(captionService.caption!),
-                            tooltip: 'Speak Caption',
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Padding(
+                  padding: EdgeInsets.all(isLargeScreen ? 32.0 : 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Section
+                      _buildHeaderSection(context, isLargeScreen),
+                      const SizedBox(height: 32),
 
-                const SizedBox(height: 20),
-                Text(
-                  'Caption History',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 10),
-                
-                // Show loading indicator for history
-                if (captionService.isLoading && captionService.history.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Column(
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 10),
-                        Text(
-                          'Loading history...',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
+                      // Upload Section (includes image preview when image is selected)
+                      _buildUploadSection(context, captionService, isLargeScreen),
+
+                      // Caption Result Section
+                      if (!captionService.isLoading && captionService.caption != null) ...[
+                        const SizedBox(height: 32),
+                        _buildCaptionResultSection(context, captionService, isLargeScreen),
                       ],
-                    ),
+
+                      const SizedBox(height: 48),
+                      
+                      // History Section
+                      _buildHistorySection(context, captionService, isLargeScreen),
+                    ],
                   ),
-                
-                // Show history items when not loading or when history exists
-                if (!captionService.isLoading || captionService.history.isNotEmpty)
-                  if (captionService.history.isNotEmpty)
-                    ...captionService.history.asMap().entries.map(
-                      (entry) => _buildHistoryItem(entry.value, entry.key),
-                    )
-                  else
-                    const Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Text(
-                        'No captions yet. Upload an image to get started!',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-              ],
+                ),
+              ),
             ),
           );
         },
@@ -222,25 +274,356 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildHeaderSection(BuildContext context, bool isLargeScreen) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'AI Image Captioning',
+          style: GoogleFonts.poppins(
+            fontSize: isLargeScreen ? 32 : 24,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primaryColor,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Upload an image and get an AI-powered description in seconds',
+          style: GoogleFonts.poppins(
+            fontSize: isLargeScreen ? 16 : 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUploadSection(BuildContext context, CaptionService captionService, bool isLargeScreen) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            // Show image preview if image is selected, otherwise show upload icon and text
+            if (_imageBytes != null) ...[
+              // Image preview section
+              Container(
+                width: double.infinity,
+                height: isLargeScreen ? 400.0 : 300.0,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.grey.shade100,
+                ),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        _imageBytes!,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        height: double.infinity,
+                      ),
+                    ),
+                    // Remove image button
+                    if (!captionService.isLoading)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: IconButton(
+                            onPressed: () => setState(() => _imageBytes = null),
+                            icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                            tooltip: 'Remove image',
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (captionService.isLoading) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(color: AppTheme.primaryColor),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Analyzing image and generating caption...',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ] else ...[
+              // Upload icon and text (shown when no image is selected)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  kIsWeb ? Icons.upload_file : Icons.add_photo_alternate,
+                  size: isLargeScreen ? 48 : 40,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                kIsWeb ? 'Click to upload an image' : 'Take a photo or choose from gallery',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Supports JPG, PNG, and other common formats',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 20),
+            // Upload button (always visible)
+            SizedBox(
+              width: isLargeScreen ? 200 : double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: captionService.isLoading ? null : _showImageUploadOptions,
+                icon: Icon(kIsWeb ? Icons.upload_file : Icons.add_photo_alternate),
+                label: Text(
+                  _imageBytes != null 
+                    ? (kIsWeb ? 'Change Image' : 'Change Photo')
+                    : (kIsWeb ? 'Upload Image' : 'Add Image'),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCaptionResultSection(BuildContext context, CaptionService captionService, bool isLargeScreen) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, color: AppTheme.primaryColor),
+                const SizedBox(width: 8),
+                Text(
+                  'Generated Caption',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                ),
+              ),
+              child: Consumer<FontSizeService>(
+                builder: (context, fontSizeService, child) {
+                  return Text(
+                    captionService.caption!,
+                    style: GoogleFonts.poppins(
+                      fontSize: fontSizeService.fontSize,
+                      fontWeight: FontWeight.w500,
+                      height: 1.5,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () => _speakCaption(captionService.caption!),
+                icon: Icon(Icons.volume_up, size: 18),
+                label: Text(
+                  'Speak Caption',
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  foregroundColor: AppTheme.primaryColor,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistorySection(BuildContext context, CaptionService captionService, bool isLargeScreen) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'History',
+              style: GoogleFonts.poppins(
+                fontSize: isLargeScreen ? 24 : 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            if (captionService.history.isNotEmpty)
+              TextButton.icon(
+                onPressed: _clearHistory,
+                icon: Icon(Icons.clear_all, size: 16, color: Colors.red),
+                label: Text(
+                  'Clear All',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        // Show loading spinner only when history is empty
+        if (captionService.history.isEmpty) ...[
+          if (captionService.isLoading || captionService.isHistoryLoading)
+            _buildLoadingCard('Loading history...')
+          else
+            _buildEmptyHistoryCard(),
+        ] else ...[
+          // History items (updates silently when not empty)
+          ...captionService.history.asMap().entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildHistoryItem(entry.value, entry.key),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildLoadingCard(String message) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            CircularProgressIndicator(color: AppTheme.primaryColor),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyHistoryCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            Icon(
+              Icons.history,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No captions yet',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Upload an image to get started!',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHistoryItem(CaptionEntry entry, int index) {
     final isExpanded = _expandedItems[index] ?? false;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusL),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () => _toggleHistoryItem(index),
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusL),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
@@ -248,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
+                  borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
@@ -258,7 +641,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppTheme.borderRadiusM),
+                  borderRadius: BorderRadius.circular(8),
                   child: entry.imageBytes != null
                       ? Image.memory(
                           entry.imageBytes!,
@@ -266,7 +649,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: isExpanded ? 200 : 80,
                           fit: BoxFit.cover,
                         )
-                      : const Icon(Icons.image_not_supported),
+                      : Container(
+                          width: 80,
+                          height: 80,
+                          color: Colors.grey.shade200,
+                          child: Icon(
+                            Icons.image_not_supported,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 16.0),
@@ -284,16 +675,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: AppTheme.primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.borderRadiusS,
-                            ),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            DateFormat(
-                              'MMM d, y • h:mm a',
-                            ).format(entry.timestamp),
+                            DateFormat('MMM d, y • h:mm a').format(entry.timestamp),
                             style: GoogleFonts.poppins(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: AppTheme.primaryColor,
                               fontWeight: FontWeight.w500,
                             ),
@@ -305,7 +692,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               icon: Icon(
                                 Icons.volume_up,
                                 color: AppTheme.primaryColor,
-                                size: 20,
+                                size: 28,
                               ),
                               onPressed: () => _speakCaption(entry.caption),
                               tooltip: 'Speak Caption',
@@ -314,24 +701,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(width: 8),
                             Icon(
-                              isExpanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
-                              color: AppTheme.textSecondaryColor,
-                              size: 20,
+                              isExpanded ? Icons.expand_less : Icons.expand_more,
+                              color: Colors.grey.shade600,
+                              size: 18,
                             ),
                           ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8.0),
+                    const SizedBox(height: 12.0),
                     Consumer<FontSizeService>(
                       builder: (context, fontSizeService, child) {
                         return Text(
                           entry.caption,
                           style: GoogleFonts.poppins(
-                            fontSize: fontSizeService.fontSize * 0.875, // Slightly smaller for history
-                            color: const Color.fromARGB(255, 17, 17, 17),
+                            fontSize: fontSizeService.fontSize * 0.875,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
                             height: 1.4,
                           ),
                           maxLines: isExpanded ? null : 2,
