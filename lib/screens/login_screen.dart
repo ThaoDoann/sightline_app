@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_services.dart';
+import '../services/global_error_service.dart';
 import '../styles/app_theme.dart';
 import '../shared/widgets/main_layout.dart';
 import 'register_screen.dart';
@@ -58,12 +59,8 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(auth.error ?? 'Login failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error message using global service
+      GlobalErrorService.showError(auth.error ?? 'Login failed');
     }
   }
 

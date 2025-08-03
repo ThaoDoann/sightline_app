@@ -122,14 +122,34 @@ class CaptionService extends ChangeNotifier {
         }
         return; // Early return to avoid setting loading false again
       } else {
-        _setError('Failed to generate caption: ${response.statusCode}');
+        // Parse error response to get specific error message
+        String errorMessage = 'Failed to generate caption: ${response.statusCode}';
+        try {
+          final errorData = jsonDecode(responseBody);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'];
+          }
+        } catch (parseError) {
+          debugPrint('❌ Caption: Could not parse error response: $parseError');
+        }
+        
+        _setError(errorMessage);
+        _setLoading(false);
+        throw Exception(errorMessage); // Throw so calling code can catch it
       }
     } catch (e) {
       _setError('Error: $e');
-    } finally {
       _setLoading(false);
+      
+      // Re-throw the exception so calling code can handle it
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Error: $e');
+      }
     }
   }
+  
 
   Future<void> generateCaptionWeb(Uint8List imageBytes) async {
     _setLoading(true);
@@ -178,28 +198,51 @@ class CaptionService extends ChangeNotifier {
         } else {
           debugPrint('🔍 Caption: Auto-save disabled, skipping history reload');
         }
-        return; // Early return to avoid setting loading false again
+        return; 
       } else {
-        _setError('Failed to generate caption: ${response.statusCode}');
+        // Parse error response to get specific error message
+        String errorMessage = 'Failed to generate caption: ${response.statusCode}';
+        try {
+          final errorData = jsonDecode(responseBody);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'];
+          }
+        } catch (parseError) {
+          debugPrint('❌ Caption: Could not parse error response: $parseError');
+        }
+        
+        _setError(errorMessage);
+        _setLoading(false);
+        throw Exception(errorMessage); // Throw so calling code can catch it
       }
     } catch (e) {
       _setError('Error: $e');
-    } finally {
       _setLoading(false);
+      
+      // Re-throw the exception so calling code can handle it
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Error: $e');
+      }
     }
   }
 
   Future<void> fetchHistoryFromBackend() async {
-    _setLoading(true);
     final token = _authService.token;
     if (token == null) {
-      _setError("User not authenticated");
-      _setLoading(false);
+      debugPrint('❌ Caption: User not authenticated');
+      return;
+    }
+
+    final user_id = _authService.userId;
+    if (user_id == null) {
+      debugPrint('❌ Caption: User ID not found');
+      _setError('User not authenticated');
       return;
     }
 
     try {
-      final user_id = _authService.userId;
       debugPrint('🔍 Caption: Fetching history for user_id: $user_id');
       
       final response = await http.get(
@@ -211,10 +254,6 @@ class CaptionService extends ChangeNotifier {
       
       if (response.statusCode == 200) {
         final data = List<Map<String, dynamic>>.from(jsonDecode(response.body));
-        _history = data.map((item) => CaptionEntry.fromJson(item)).toList();
-        debugPrint('✅ Caption: Loaded ${_history.length} history items');
-        notifyListeners();
-      } else {
         debugPrint('❌ Caption: Failed to fetch history: ${response.statusCode}');
         _setError('Failed to fetch history: ${response.statusCode}');
       }
@@ -247,13 +286,13 @@ class CaptionService extends ChangeNotifier {
   // Clear only caption history data
   Future<void> clearCaptionHistory() async {
     try {
-      final user_id = _authService.userId;
       final token = _authService.token;
       if (token == null) {
         debugPrint('❌ Caption: User not authenticated, cannot clear history');
         return;
       }
 
+      final user_id = _authService.userId;
       if (user_id == null) {
         debugPrint('❌ Caption: User ID not found, cannot clear history');
         _setError('User ID not found');
@@ -268,7 +307,7 @@ class CaptionService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         _history.clear();
-        debugPrint('✅ Caption: History cleared successfully');
+        debugPrint('✅ Caption: ${response} caption items cleared successfully');
         notifyListeners();
       } else {
         debugPrint('❌ Caption: Failed to clear history: ${response.statusCode}');

@@ -42,6 +42,8 @@ class _CommonAppBarState extends State<CommonAppBar> {
       setState(() {
         _isProfileMenuOpen = false;
       });
+    } else {
+      _isProfileMenuOpen = false;
     }
   }
 

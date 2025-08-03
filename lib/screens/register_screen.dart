@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_services.dart';
+import '../services/global_error_service.dart';
 import '../styles/app_theme.dart';
 import '../shared/widgets/main_layout.dart';
 import 'login_screen.dart';
@@ -88,12 +89,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authService.error ?? 'Registration failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error message using global service
+      GlobalErrorService.showError(authService.error ?? 'Registration failed');
     }
   }
 

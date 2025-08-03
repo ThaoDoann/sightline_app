@@ -19,6 +19,7 @@ import '../styles/app_theme.dart';
 import 'login_screen.dart';
 import '../services/auth_services.dart';
 import '../services/font_size_service.dart';
+import '../services/global_error_service.dart';
 import '../main.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,8 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   final ImagePicker _picker = ImagePicker();
   final Map<int, bool> _expandedItems = {};
-  
-
 
   @override
   void initState() {
@@ -56,25 +55,54 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final XFile? pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
+        
         final bytes = await pickedFile.readAsBytes();
+        
         setState(() {
           _imageBytes = bytes;
         });
-
-        if (kIsWeb) {
-          // Generate caption and save to database in one step
-          await context.read<CaptionService>().generateCaptionWeb(bytes);
-        } else {
-          // Generate caption and save to database in one step
-          await context.read<CaptionService>().generateCaption(
-            File(pickedFile.path),
-          );
+        
+        try {
+          if (kIsWeb) {
+            // Generate caption and save to database in one step
+            await context.read<CaptionService>().generateCaptionWeb(bytes);
+          } else {
+            // Generate caption and save to database in one step
+            await context.read<CaptionService>().generateCaption(
+              File(pickedFile.path),
+            );
+          }
+        } catch (captionError) {
+          // Handle backend errors from caption service
+          debugPrint('❌ Caption generation error: $captionError');
+          
+          // Clear the selected image on error
+          setState(() {
+            _imageBytes = null;
+          });
+          
+          // Check if it's a backend validation error (400 status)
+          if (captionError.toString().contains('Invalid file extension') ||
+              captionError.toString().contains('Only .jpg, .jpeg, and .png files are allowed') ||
+              captionError.toString().contains('cannot identify image file')) {
+            GlobalErrorService.showError(
+              'Invalid image format. Only JPG, JPEG, and PNG files are supported.',
+            );
+          } else if (captionError.toString().contains('ClientException') ||
+                     captionError.toString().contains('Failed to fetch')) {
+            GlobalErrorService.showError(
+              'Unable to connect to server. Please check your internet connection.',
+            );
+          } else {
+            GlobalErrorService.showError(
+              'Failed to generate caption. Please try again.',
+            );
+          }
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
+      debugPrint('❌ Image picker error: $e');
+      GlobalErrorService.showError('Failed to select image. Please try again.');
     }
   }
 
@@ -127,12 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirmed == true) {
       await context.read<CaptionService>().clearCaptionHistory();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('History cleared successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      GlobalErrorService.showSuccess('History cleared successfully');
     }
   }
 
@@ -394,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Supports JPG, PNG, and other common formats',
+                'Select your image file - supported formats will be validated',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: Colors.grey.shade500,
