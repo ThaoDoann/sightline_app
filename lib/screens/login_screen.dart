@@ -28,7 +28,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (auth.token != null) {
-      // Login successful: refresh UI via provider
+      // Login successful: navigate to home screen
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     } else {
       ScaffoldMessenger.of(
         context,

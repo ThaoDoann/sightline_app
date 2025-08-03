@@ -39,11 +39,22 @@ class CaptionService extends ChangeNotifier {
       return;
     }
     try {
+      debugPrint('🔍 Caption: Starting caption generation (Mobile)...');
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('${dotenv.env['API_URL']}/caption'),
+        Uri.parse('${dotenv.env['API_URL']}/generate-caption'),
       );
       request.headers['Authorization'] = 'Bearer $token';
+      
+      // Add user_id as form field (required by backend)
+      final userId = _authService.userId;
+      if (userId == null) {
+        _setError("User ID not found");
+        _setLoading(false);
+        return;
+      }
+      request.fields['user_id'] = userId;
+      
       request.files.add(
         await http.MultipartFile.fromPath('file', imageFile.path),
       );
@@ -53,6 +64,9 @@ class CaptionService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         _caption = _parseCaption(responseBody);
+        debugPrint('✅ Caption: Caption generated successfully = $_caption');
+        // // Caption is automatically saved to database, refresh history
+        // await _fetchHistoryWithoutLoading();
       } else {
         _setError('Failed to generate caption: ${response.statusCode}');
       }
@@ -72,11 +86,22 @@ class CaptionService extends ChangeNotifier {
       return;
     }
     try {
+      debugPrint('🔍 Caption: Starting caption generation (Web)...');
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('${dotenv.env['API_URL']}/caption'),
+        Uri.parse('${dotenv.env['API_URL']}/generate-caption'),
       );
       request.headers['Authorization'] = 'Bearer $token';
+      
+      // Add user_id as form field (required by backend)
+      final userId = _authService.userId;
+      if (userId == null) {
+        _setError("User ID not found");
+        _setLoading(false);
+        return;
+      }
+      request.fields['user_id'] = userId;
+      
       request.files.add(
         http.MultipartFile.fromBytes('file', imageBytes, filename: 'image.jpg'),
       );
@@ -86,6 +111,7 @@ class CaptionService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         _caption = _parseCaption(responseBody);
+        print('Caption generated: $_caption');
       } else {
         _setError('Failed to generate caption: ${response.statusCode}');
       }
@@ -106,18 +132,27 @@ class CaptionService extends ChangeNotifier {
     }
 
     try {
+      final user_id = _authService.userId;
+      debugPrint('🔍 Caption: Fetching history for user_id: $user_id');
+      
       final response = await http.get(
-        Uri.parse('${dotenv.env['API_URL']}/captions'),
+        Uri.parse('${dotenv.env['API_URL']}/captions?user_id=$user_id'),
         headers: {'Authorization': 'Bearer $token'},
       );
+      
+      debugPrint('🔍 Caption: History response status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = List<Map<String, dynamic>>.from(jsonDecode(response.body));
         _history = data.map((item) => CaptionEntry.fromJson(item)).toList();
+        debugPrint('✅ Caption: Loaded ${_history.length} history items');
         notifyListeners();
       } else {
+        debugPrint('❌ Caption: Failed to fetch history: ${response.statusCode}');
         _setError('Failed to fetch history: ${response.statusCode}');
       }
     } catch (e) {
+      debugPrint('❌ Caption: Error fetching history: $e');
       _setError('Error fetching history: $e');
     } finally {
       _setLoading(false);
@@ -134,10 +169,20 @@ class CaptionService extends ChangeNotifier {
     _caption = null;
     notifyListeners();
   }
-
+  
+  
   void clearCaption() {
     _caption = null;
     _error = null;
+    notifyListeners();
+  }
+
+  // Clear all data when user logs out or switches users
+  void clearAllData() {
+    debugPrint('Caption: Clearing all caption data');
+    _caption = null;
+    _error = null;
+    _history.clear();
     notifyListeners();
   }
 }

@@ -101,6 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               onLogoutTap: () async {
                 _removeOverlay();
+                // Clear caption data before logout
+                context.read<CaptionService>().clearAllData();
                 await context.read<AuthService>().logout();
                 if (!mounted) return;
                 Navigator.pushReplacement(
@@ -115,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+    Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
@@ -125,15 +127,15 @@ class _HomeScreenState extends State<HomeScreen> {
         });
 
         if (kIsWeb) {
+          // Generate caption and save to database in one step
           await context.read<CaptionService>().generateCaptionWeb(bytes);
         } else {
+          // Generate caption and save to database in one step
           await context.read<CaptionService>().generateCaption(
             File(pickedFile.path),
           );
         }
       }
-      await context.read<CaptionService>().fetchHistoryFromBackend();
-      setState(() {}); // refresh UI
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -270,7 +272,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 20),
                 if (_imageBytes != null) ...[
                   Image.memory(_imageBytes!, height: 200, fit: BoxFit.cover),
-                  if (captionService.caption != null)
+                  const SizedBox(height: 20),
+                  
+                  // Loading indicator while generating caption
+                  if (captionService.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 10),
+                          Text(
+                            'Generating caption...',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                  // Caption display when not loading and caption exists
+                  if (!captionService.isLoading && captionService.caption != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Column(
@@ -299,10 +323,45 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Caption History',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                if (captionService.history.isNotEmpty)
-                  ...captionService.history.asMap().entries.map(
-                    (entry) => _buildHistoryItem(entry.value, entry.key),
+                const SizedBox(height: 10),
+                
+                // Show loading indicator for history
+                if (captionService.isLoading && captionService.history.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 10),
+                        Text(
+                          'Loading history...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                
+                // Show history items when not loading or when history exists
+                if (!captionService.isLoading || captionService.history.isNotEmpty)
+                  if (captionService.history.isNotEmpty)
+                    ...captionService.history.asMap().entries.map(
+                      (entry) => _buildHistoryItem(entry.value, entry.key),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text(
+                        'No captions yet. Upload an image to get started!',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
               ],
             ),
           );
