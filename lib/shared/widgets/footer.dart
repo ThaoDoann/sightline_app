@@ -1,47 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../styles/app_theme.dart';
 
-class CommonFooter extends StatefulWidget {
-  final bool showTTSVolume;
+class CommonFooter extends StatelessWidget {
+  final bool showTTSVolume; // Kept for compatibility but not used
   
   const CommonFooter({
     super.key,
     this.showTTSVolume = false,
   });
-
-  @override
-  State<CommonFooter> createState() => _CommonFooterState();
-  
-  static _CommonFooterState? of(BuildContext context) {
-    return context.findAncestorStateOfType<_CommonFooterState>();
-  }
-}
-
-class _CommonFooterState extends State<CommonFooter> {
-  double _ttsVolume = 0.5;
-  static const String _volumePrefKey = 'tts_volume';
-
-  double get ttsVolume => _ttsVolume;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVolumePreference();
-  }
-
-  Future<void> _loadVolumePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _ttsVolume = prefs.getDouble(_volumePrefKey) ?? 0.5;
-    });
-  }
-
-  Future<void> _saveVolumePreference(double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_volumePrefKey, value);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,32 +28,7 @@ class _CommonFooterState extends State<CommonFooter> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.showTTSVolume) ...[
-              Text(
-                'TTS Volume',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textPrimaryColor,
-                ),
-              ),
-              Slider(
-                value: _ttsVolume,
-                min: 0.0,
-                max: 1.0,
-                divisions: 10,
-                label: '${(_ttsVolume * 100).round()}%',
-                onChanged: (value) {
-                  setState(() {
-                    _ttsVolume = value;
-                  });
-                  _saveVolumePreference(value);
-                },
-                activeColor: AppTheme.primaryColor,
-                inactiveColor: AppTheme.primaryColor.withOpacity(0.3),
-              ),
-              const SizedBox(height: 8),
-            ],
+
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(8.0),

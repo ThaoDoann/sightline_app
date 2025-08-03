@@ -41,12 +41,28 @@ class ProfileMenu extends StatelessWidget {
                 topRight: Radius.circular(AppTheme.borderRadiusM),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(userName, style: AppTheme.titleMedium),
-                const SizedBox(height: AppTheme.spacingXS),
-                Text(userEmail, style: AppTheme.bodySmall),
+                CircleAvatar(
+                  backgroundColor: AppTheme.primaryColor,
+                  radius: 20,
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(userName, style: AppTheme.titleMedium),
+                      const SizedBox(height: AppTheme.spacingXS),
+                      Text(userEmail, style: AppTheme.bodySmall),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

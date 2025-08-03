@@ -6,6 +6,7 @@ import '../../services/caption_service.dart';
 import '../../styles/app_theme.dart';
 import '../../main.dart';
 import '../../screens/login_screen.dart';
+import '../../screens/settings_screen.dart';
 import 'profile_menu.dart';
 
 class CommonAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -37,9 +38,11 @@ class _CommonAppBarState extends State<CommonAppBar> {
   void _removeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    setState(() {
-      _isProfileMenuOpen = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isProfileMenuOpen = false;
+      });
+    }
   }
 
   void _showProfileMenu() {
@@ -48,16 +51,18 @@ class _CommonAppBarState extends State<CommonAppBar> {
     } else {
       _overlayEntry = _createOverlayEntry();
       Overlay.of(context).insert(_overlayEntry!);
-      setState(() {
-        _isProfileMenuOpen = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isProfileMenuOpen = true;
+        });
+      }
     }
   }
 
   OverlayEntry _createOverlayEntry() {
     final user = context.read<AuthService>();
     return OverlayEntry(
-      builder: (context) => Positioned(
+      builder: (overlayContext) => Positioned(
         width: 250,
         child: CompositedTransformFollower(
           link: _layerLink,
@@ -71,16 +76,24 @@ class _CommonAppBarState extends State<CommonAppBar> {
               userEmail: user?.email ?? 'email@example.com',
               onSettingsTap: () {
                 _removeOverlay();
+                if (mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                }
               },
               onLogoutTap: () async {
                 _removeOverlay();
-                // Clear caption data before logout
-                context.read<CaptionService>().clearAllData();
-                await context.read<AuthService>().logout();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
+                if (mounted) {
+                  // Clear caption data before logout
+                  context.read<CaptionService>().clearAllData();
+                  await context.read<AuthService>().logout();
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                }
               },
             ),
           ),
@@ -117,23 +130,6 @@ class _CommonAppBarState extends State<CommonAppBar> {
         ),
       ),
       actions: [
-        Row(
-          children: [
-            const Icon(Icons.light_mode),
-            Switch(
-              value: MyApp.themeNotifier.value == ThemeMode.dark,
-              onChanged: (value) {
-                setState(() {
-                  MyApp.themeNotifier.value =
-                      value ? ThemeMode.dark : ThemeMode.light;
-                });
-              },
-            ),
-            const Icon(Icons.dark_mode),
-            const SizedBox(width: 16),
-          ],
-        ),
-        
         // Show user profile only when logged in
         if (widget.showUserProfile) ...[
           CompositedTransformTarget(

@@ -18,6 +18,7 @@ import 'dart:convert';
 import '../styles/app_theme.dart';
 import 'login_screen.dart';
 import '../services/auth_services.dart';
+import '../services/font_size_service.dart';
 import '../main.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -96,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return MainLayout(
       showUserProfile: true,
-      showTTSVolume: true,
+      showTTSVolume: false, // Volume control moved to settings
       child: Consumer<CaptionService>(
         builder: (context, captionService, child) {
           return SingleChildScrollView(
@@ -147,12 +148,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         children: [
                           const SizedBox(height: 10),
-                          Text(
-                            captionService.caption!,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          Consumer<FontSizeService>(
+                            builder: (context, fontSizeService, child) {
+                              return Text(
+                                captionService.caption!,
+                                style: TextStyle(
+                                  fontSize: fontSizeService.fontSize,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              );
+                            },
                           ),
                           IconButton(
                             icon: const Icon(Icons.volume_up),
@@ -320,15 +325,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 8.0),
-                    Text(
-                      entry.caption,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: const Color.fromARGB(255, 17, 17, 17),
-                        height: 1.4,
-                      ),
-                      maxLines: isExpanded ? null : 2,
-                      overflow: isExpanded ? null : TextOverflow.ellipsis,
+                    Consumer<FontSizeService>(
+                      builder: (context, fontSizeService, child) {
+                        return Text(
+                          entry.caption,
+                          style: GoogleFonts.poppins(
+                            fontSize: fontSizeService.fontSize * 0.875, // Slightly smaller for history
+                            color: const Color.fromARGB(255, 17, 17, 17),
+                            height: 1.4,
+                          ),
+                          maxLines: isExpanded ? null : 2,
+                          overflow: isExpanded ? null : TextOverflow.ellipsis,
+                        );
+                      },
                     ),
                   ],
                 ),

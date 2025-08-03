@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/home_screen.dart';
 import 'services/caption_service.dart';
+import 'services/font_size_service.dart';
 import 'screens/login_screen.dart';
 import './services/auth_services.dart';
 import 'styles/app_theme.dart';
@@ -15,6 +16,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
+        ChangeNotifierProvider<FontSizeService>(create: (_) => FontSizeService()),
         ChangeNotifierProxyProvider<AuthService, CaptionService>(
           create: (context) => CaptionService(
               Provider.of<AuthService>(context, listen: false)),
